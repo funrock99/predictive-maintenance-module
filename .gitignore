@@ -1,0 +1,7 @@
+gemini.md
+.env
+start.bat
+__pycache__/
+.pytest_cache/
+*.pyc
+pdm_project_plan.md
