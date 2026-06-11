@@ -29,7 +29,7 @@ pip install fastapi uvicorn pydantic requests websockets python-dotenv httpx sci
 ### 3. 啟動後端 API 與儀表板服務
 開啟第一個終端機 (Terminal / PowerShell)，進入專案目錄並啟動 FastAPI：
 ```bash
-cd E:\機台預警與預測性維護模組
+cd E:\predictive-maintenance-module
 python main.py
 ```
 > 服務將運行在 `http://127.0.0.1:8000`
@@ -37,7 +37,7 @@ python main.py
 ### 4. 啟動機台數據模擬器
 開啟**第二個**終端機視窗，啟動模擬器持續發送感測數據：
 ```bash
-cd E:\機台預警與預測性維護模組
+cd E:\predictive-maintenance-module
 python sensor_simulator.py
 ```
 > 模擬器會以每秒 1 筆的頻率產生溫度、壓力與震動數據，並有一定機率隨機注入「突波 (Spike)」或「緩慢偏移 (Drift)」異常。
