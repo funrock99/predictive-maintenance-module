@@ -211,9 +211,14 @@
 
     <header>
         <h1>PdM Real-time Dashboard</h1>
-        <div class="status-badge" id="global-status">
-            <div class="pulse"></div>
-            <span id="status-text">System Normal</span>
+        <div style="display:flex; gap: 16px;">
+            <div class="status-badge" id="ai-status" style="border-color: rgba(167, 139, 250, 0.5); color: #a78bfa; background: rgba(167, 139, 250, 0.1);">
+                <span id="ai-score-text">AI Score: 0.0</span>
+            </div>
+            <div class="status-badge" id="global-status">
+                <div class="pulse"></div>
+                <span id="status-text">System Normal</span>
+            </div>
         </div>
     </header>
 
@@ -254,6 +259,6 @@
 
     <div id="toast-container"></div>
 
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=2"></script>
 </body>
 </html>

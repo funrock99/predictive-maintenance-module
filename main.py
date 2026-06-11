@@ -7,11 +7,12 @@ import json
 from datetime import datetime
 from anomaly_detector import AnomalyDetector
 from notifier import Notifier
+from data_adapter import DataAdapter
 
-app = FastAPI(title="PdM Core API", description="機台預警與預測性維護 API", version="1.0.0")
+app = FastAPI(title="PdM Core API", description="進階機台預警與預測性維護 API", version="1.0.0")
 
-# 初始化異常偵測器與通知器
-detector = AnomalyDetector(window_size=30, threshold_z=3.0)
+# 初始化異常偵測器與通知器 (啟用 ML Isolation Forest)
+detector = AnomalyDetector(window_size=50, threshold_z=3.0, use_ml=True)
 notifier = Notifier()
 
 # WebSocket 連線管理
@@ -55,8 +56,11 @@ async def receive_sensor_data(data: SensorData, background_tasks: BackgroundTask
     # 優化：使用 model_dump 兼容最新 Pydantic V2 語法，展示對套件更迭的敏銳度
     data_dict = data.model_dump() if hasattr(data, "model_dump") else data.dict()
     
-    # 進行異常偵測
-    detection_result = detector.detect(data_dict)
+    # 資料適配層：將收到的資料標準化 (預設為本機 simulator)
+    normalized_data = DataAdapter.normalize_sensor_data(data_dict, source="simulator")
+    
+    # 進行進階異常偵測
+    detection_result = detector.detect(normalized_data)
     
     if detection_result.get("is_anomaly"):
         # 優化 (Phase 3)：觸發 Notification Manager 移至 BackgroundTasks，確保 Sensor API 瞬間回傳 200 OK
@@ -70,7 +74,8 @@ async def receive_sensor_data(data: SensorData, background_tasks: BackgroundTask
         "pressure": data.pressure,
         "vibration": data.vibration,
         "is_anomaly": detection_result.get("is_anomaly", False),
-        "anomalies": detection_result.get("anomalies", {})
+        "anomalies": detection_result.get("anomalies", {}),
+        "ml_score": detection_result.get("ml_score", 0.0)
     }
     await manager.broadcast(json.dumps(payload))
 

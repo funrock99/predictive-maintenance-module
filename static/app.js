@@ -98,9 +98,28 @@ function showToast(title, message) {
 // Global Status UI
 const globalStatus = document.getElementById('global-status');
 const statusText = document.getElementById('status-text');
+const aiScoreText = document.getElementById('ai-score-text');
+const aiStatus = document.getElementById('ai-status');
 let alertTimeout;
 
-function setAlertState(isAnomaly, anomalies) {
+function setAlertState(data) {
+    const isAnomaly = data.is_anomaly;
+    const anomalies = data.anomalies;
+
+    // Update AI Score Display
+    if (data.ml_score !== undefined) {
+        aiScoreText.innerText = `AI Score: ${data.ml_score.toFixed(3)}`;
+        if (isAnomaly) {
+            aiStatus.style.background = 'rgba(239, 68, 68, 0.2)';
+            aiStatus.style.borderColor = '#ef4444';
+            aiStatus.style.color = '#ef4444';
+        } else {
+            aiStatus.style.background = 'rgba(167, 139, 250, 0.1)';
+            aiStatus.style.borderColor = 'rgba(167, 139, 250, 0.5)';
+            aiStatus.style.color = '#a78bfa';
+        }
+    }
+
     if (isAnomaly) {
         globalStatus.classList.add('alert');
         statusText.innerText = "Anomaly Detected!";
@@ -108,9 +127,15 @@ function setAlertState(isAnomaly, anomalies) {
         // Build toast message
         let msgParts = [];
         for (const [key, info] of Object.entries(anomalies)) {
-            msgParts.push(`${key}: ${info.value} (Z:${info.z_score})`);
+            if (key === 'isolation_forest') {
+                msgParts.push(`Multiple Sensors Anomaly (ML Score: ${info.ml_score})`);
+            } else if (key === 'root_cause_hint') {
+                msgParts.push(`Root Cause Hint: ${info.feature} (Deviation Z:${info.deviation_z_score})`);
+            } else {
+                msgParts.push(`${key}: ${info.value} (Z:${info.z_score})`);
+            }
         }
-        showToast("Machine Warning", msgParts.join(' | '));
+        showToast("Machine Warning", msgParts.join('<br>'));
 
         clearTimeout(alertTimeout);
         alertTimeout = setTimeout(() => {
@@ -133,7 +158,16 @@ function updateDashboard(data) {
         chartData.labels.push(timeLabel);
         
         // Check if this specific point is anomalous
-        const isPointAnomaly = data.is_anomaly && data.anomalies[key];
+        // 如果是單變量 Z-score 異常，直接標示
+        // 如果是多維度 Isolation Forest，且這個屬性被列為 root_cause_hint，也將其標紅
+        let isPointAnomaly = false;
+        if (data.is_anomaly) {
+            if (data.anomalies[key]) {
+                isPointAnomaly = true;
+            } else if (data.anomalies.root_cause_hint && data.anomalies.root_cause_hint.feature === key) {
+                isPointAnomaly = true;
+            }
+        }
         
         // Push data as object to store anomaly state for segment coloring
         chartData.datasets[0].data.push({ x: timeLabel, y: val, y_anomaly: isPointAnomaly });
@@ -149,7 +183,7 @@ function updateDashboard(data) {
     updateSensor('pressure', 'val-press', charts.pressure);
     updateSensor('vibration', 'val-vib', charts.vibration);
 
-    setAlertState(data.is_anomaly, data.anomalies);
+    setAlertState(data);
 }
 
 // WebSocket Connection
