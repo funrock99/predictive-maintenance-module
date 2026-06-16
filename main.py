@@ -25,14 +25,24 @@ class ConnectionManager:
         self.active_connections.append(websocket)
 
     def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
 
     async def broadcast(self, message: str):
         import asyncio
+        # 取得當前連線快照，避免異步執行時 active_connections 發生變動
+        connections_snapshot = list(self.active_connections)
+        if not connections_snapshot:
+            return
+            
         # 優化：使用 asyncio.gather 達成真正的非同步並發推送，避免在 for 迴圈中造成後續連線阻塞
-        tasks = [connection.send_text(message) for connection in self.active_connections]
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+        tasks = [connection.send_text(message) for connection in connections_snapshot]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # 處理異常斷線：如果推播失敗，自動清除該失效連線
+        for connection, result in zip(connections_snapshot, results):
+            if isinstance(result, Exception):
+                self.disconnect(connection)
 
 manager = ConnectionManager()
 
