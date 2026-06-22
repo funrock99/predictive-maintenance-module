@@ -32,7 +32,7 @@ pip install fastapi uvicorn pydantic requests websockets python-dotenv httpx sci
 cd predictive-maintenance-module
 python main.py
 ```
-> 服務將運行在 `http://127.0.0.1:8000`
+> 服務預設運行在 `http://127.0.0.1:8001`，可透過環境變數 `PDM_PORT` 覆寫。
 
 ### 4. 啟動機台數據模擬器
 開啟**第二個**終端機視窗，同樣進入專案目錄後，啟動模擬器持續發送感測數據：
@@ -40,15 +40,57 @@ python main.py
 cd predictive-maintenance-module
 python sensor_simulator.py
 ```
-> 模擬器會以每秒 1 筆的頻率產生溫度、壓力與震動數據，並有一定機率隨機注入「突波 (Spike)」或「緩慢偏移 (Drift)」異常。
+> 模擬器預設送往 `http://127.0.0.1:8001/api/v1/sensors`，可透過環境變數 `PDM_API_URL` 覆寫。它會以每秒 1 筆的頻率產生溫度、壓力與震動數據，並有一定機率隨機注入「突波 (Spike)」或「緩慢偏移 (Drift)」異常。
 
-### 5. 觀看即時戰情儀表板
+### 5. 串接外部 CIM 聚合資料
+若由 CIM bridge 傳送聚合後資料，可直接 POST 到相同端點並帶上 `source=cim`：
+```bash
+curl -X POST "http://127.0.0.1:8001/api/v1/sensors?source=cim" \
+  -H "Content-Type: application/json" \
+  -d "{\"equipment_id\":\"EQP-01\",\"time\":\"2026-06-22T14:00:00\",\"status\":\"running\",\"metrics\":{\"temp\":75.1,\"pres\":101.2,\"vib\":49.7}}"
+```
+也支援包裝格式：
+```json
+{
+  "source": "cim",
+  "cim_payload": {
+    "equipment_id": "EQP-01",
+    "time": "2026-06-22T14:00:00",
+    "status": "running",
+    "metrics": {
+      "temp": 75.1,
+      "pres": 101.2,
+      "vib": 49.7
+    }
+  }
+}
+```
+
+### 6. 擴充其他 Data Source 前的必要定義
+PDM 目前支援 `simulator` 與 `cim` 兩種資料來源。若未來要接入 `mqtt`、`opcua`、`mes` 或其他來源，建議先定義 `source` 與 payload contract，再實作 `data_adapter.py` 的對應 mapping，避免直接將未知格式送進 `/api/v1/sensors`。
+
+新增來源時，至少需要先定義：
+- `source` 名稱，例如 `mqtt`、`opcua`
+- 原始 payload 欄位結構
+- 時間格式與數值單位
+- 缺值或非法值的處理規則
+- 映射到 PDM 標準欄位的方式：
+  - `machine_id`
+  - `timestamp`
+  - `temperature`
+  - `pressure`
+  - `vibration`
+  - `status`
+
+若新來源仍可映射到既有三維特徵，通常只需擴充 `data_adapter.py`。若要分析新的特徵維度，則需同步評估 `anomaly_detector.py` 與 dashboard 欄位是否需要擴充。
+
+### 7. 觀看即時戰情儀表板
 請開啟瀏覽器，前往：
-👉 **[http://127.0.0.1:8000](http://127.0.0.1:8000)**
+👉 **[http://127.0.0.1:8001](http://127.0.0.1:8001)**
 
 您將會在畫面上看見即時更新的數據圖表。右上角會顯示動態計算的 **AI Score**（模型需要約 20 秒收集基礎特徵視窗，期間會顯示 0.0）。當模擬器產生異常數據時，圖表右下角將會滑出紅色的 Toast 警告，顯示「多維度聯合異常」及模型計算出的「根本原因 (Root Cause Hint)」。若您有設定 Line Token，手機也會同步收到警報訊息。
 
-### 6. 停止服務
+### 8. 停止服務
 若要結束監控，請分別在兩個終端機中按下 `Ctrl + C` 終止服務。
 
 ---

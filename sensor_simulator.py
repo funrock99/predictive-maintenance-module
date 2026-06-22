@@ -1,6 +1,7 @@
 import time
 import random
 import json
+import os
 import requests
 from datetime import datetime
 
@@ -66,6 +67,7 @@ class SensorSimulator:
 if __name__ == "__main__":
     print("啟動機台數據模擬器...")
     simulator = SensorSimulator("MCH-001")
+    api_url = os.getenv("PDM_API_URL", "http://127.0.0.1:8001/api/v1/sensors")
     
     try:
         iteration = 0
@@ -82,11 +84,13 @@ if __name__ == "__main__":
             
             # 傳送至 FastAPI
             try:
-                response = requests.post("http://127.0.0.1:8000/api/v1/sensors", json=data)
+                response = requests.post(api_url, json=data, timeout=5)
                 if response.status_code != 200:
                     print(f"API Error: {response.status_code}")
             except requests.exceptions.ConnectionError:
                 pass # 如果 API 沒開，先忽略錯誤
+            except requests.exceptions.Timeout:
+                print(f"API Timeout: {api_url}")
 
             iteration += 1
             time.sleep(1) # 每秒產生一筆

@@ -1,10 +1,10 @@
-from fastapi import FastAPI, BackgroundTasks, WebSocket, WebSocketDisconnect
+import os
+import json
+
+from fastapi import FastAPI, BackgroundTasks, WebSocket, WebSocketDisconnect, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
 import uvicorn
-import json
-from datetime import datetime
 from anomaly_detector import AnomalyDetector
 from notifier import Notifier
 from data_adapter import DataAdapter
@@ -53,36 +53,49 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 async def get_index():
     return FileResponse("static/index.html")
 
-class SensorData(BaseModel):
-    machine_id: str
-    timestamp: str
-    temperature: float
-    pressure: float
-    vibration: float
-    status: str
-
 @app.post("/api/v1/sensors")
-async def receive_sensor_data(data: SensorData, background_tasks: BackgroundTasks):
-    # 優化：使用 model_dump 兼容最新 Pydantic V2 語法，展示對套件更迭的敏銳度
-    data_dict = data.model_dump() if hasattr(data, "model_dump") else data.dict()
-    
-    # 資料適配層：將收到的資料標準化 (預設為本機 simulator)
-    normalized_data = DataAdapter.normalize_sensor_data(data_dict, source="simulator")
+async def receive_sensor_data(
+    data: dict,
+    background_tasks: BackgroundTasks,
+    source: str = Query(default="simulator", pattern="^(simulator|cim)$")
+):
+    effective_source = data.get("source", source)
+    if effective_source not in {"simulator", "cim"}:
+        raise HTTPException(status_code=400, detail="Unsupported source. Use 'simulator' or 'cim'.")
+
+    if effective_source == "simulator" and not data.get("machine_id"):
+        raise HTTPException(status_code=422, detail="Simulator payload requires 'machine_id'.")
+
+    if effective_source == "cim":
+        cim_payload = data.get("cim_payload") if isinstance(data.get("cim_payload"), dict) else data
+        if not cim_payload.get("equipment_id") and not cim_payload.get("machine_id"):
+            raise HTTPException(status_code=422, detail="CIM payload requires 'equipment_id' or 'machine_id'.")
+
+    try:
+        normalized_data = DataAdapter.normalize_sensor_data(data, source=effective_source)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid sensor payload: {exc}") from exc
     
     # 進行進階異常偵測
     detection_result = detector.detect(normalized_data)
     
     if detection_result.get("is_anomaly"):
         # 優化 (Phase 3)：觸發 Notification Manager 移至 BackgroundTasks，確保 Sensor API 瞬間回傳 200 OK
-        background_tasks.add_task(notifier.send_alert, data.machine_id, detection_result.get("anomalies", {}))
+        background_tasks.add_task(
+            notifier.send_alert,
+            normalized_data["machine_id"],
+            detection_result.get("anomalies", {})
+        )
 
     # Phase 4: 透過 WebSocket 廣播給前端 Dashboard
     payload = {
-        "machine_id": data.machine_id,
-        "timestamp": data.timestamp,
-        "temperature": data.temperature,
-        "pressure": data.pressure,
-        "vibration": data.vibration,
+        "machine_id": normalized_data["machine_id"],
+        "timestamp": normalized_data["timestamp"],
+        "temperature": normalized_data["temperature"],
+        "pressure": normalized_data["pressure"],
+        "vibration": normalized_data["vibration"],
+        "status": normalized_data["status"],
+        "source": normalized_data["source"],
         "is_anomaly": detection_result.get("is_anomaly", False),
         "anomalies": detection_result.get("anomalies", {}),
         "ml_score": detection_result.get("ml_score", 0.0)
@@ -91,7 +104,8 @@ async def receive_sensor_data(data: SensorData, background_tasks: BackgroundTask
 
     return {
         "status": "success",
-        "machine_id": data.machine_id,
+        "machine_id": normalized_data["machine_id"],
+        "source": normalized_data["source"],
         "is_anomaly": detection_result.get("is_anomaly"),
         "anomalies": detection_result.get("anomalies", {})
     }
@@ -112,4 +126,4 @@ async def websocket_endpoint(websocket: WebSocket):
 
 if __name__ == "__main__":
     print("啟動 PdM Core API 微服務...")
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=int(os.getenv("PDM_PORT", "8001")), reload=True)
