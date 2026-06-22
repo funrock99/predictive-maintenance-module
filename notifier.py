@@ -25,7 +25,21 @@ class Notifier:
         # 1. 系統日誌 (SysLog)
         alert_msg = f"[ALERT] 機台 {machine_id} 偵測到異常數據！"
         for key, info in anomalies.items():
-             alert_msg += f" {key}: {info['value']} (Z-Score: {info['z_score']})"
+            if not isinstance(info, dict):
+                alert_msg += f" {key}: {info}"
+                continue
+
+            if "value" in info and "z_score" in info:
+                alert_msg += f" {key}: {info['value']} (Z-Score: {info['z_score']})"
+            elif "message" in info and "ml_score" in info:
+                alert_msg += f" {key}: {info['message']} (ML Score: {info['ml_score']})"
+            elif "feature" in info and "deviation_z_score" in info:
+                alert_msg += (
+                    f" {key}: {info['feature']} deviated most "
+                    f"(Z-Score: {info['deviation_z_score']})"
+                )
+            else:
+                alert_msg += f" {key}: {info}"
         
         logger.warning(alert_msg)
 
