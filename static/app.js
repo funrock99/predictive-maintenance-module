@@ -100,6 +100,7 @@ const globalStatus = document.getElementById('global-status');
 const statusText = document.getElementById('status-text');
 const aiScoreText = document.getElementById('ai-score-text');
 const aiStatus = document.getElementById('ai-status');
+const sourceText = document.getElementById('source-text');
 let alertTimeout;
 
 function setAlertState(data) {
@@ -148,6 +149,7 @@ function setAlertState(data) {
 // Update UI
 function updateDashboard(data) {
     const timeLabel = new Date(data.timestamp).toLocaleTimeString();
+    sourceText.innerText = `Source: ${data.source || 'unknown'}`;
 
     // Helper to update specific card and chart
     const updateSensor = (key, valId, chartObj) => {
