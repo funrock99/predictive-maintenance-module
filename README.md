@@ -90,6 +90,11 @@ PDM 目前支援 `simulator` 與 `cim` 兩種資料來源。若未來要接入 `
 
 您將會在畫面上看見即時更新的數據圖表。右上角會顯示動態計算的 **AI Score**（模型需要約 20 秒收集基礎特徵視窗，期間會顯示 0.0）。當模擬器產生異常數據時，圖表右下角將會滑出紅色的 Toast 警告，顯示「多維度聯合異常」及模型計算出的「根本原因 (Root Cause Hint)」。若您有設定 Line Token，手機也會同步收到警報訊息。
 
+### 7.1 Dashboard 畫面截圖
+以下為本專案 dashboard 的實際執行畫面：
+
+![PdM Dashboard 畫面](docs/dashboard-screenshot.png)
+
 ### 8. 停止服務
 若要結束監控，請分別在兩個終端機中按下 `Ctrl + C` 終止服務。
 
@@ -104,3 +109,5 @@ PDM 目前支援 `simulator` 與 `cim` 兩種資料來源。若未來要接入 `
 * `static/index.html` - 戰情儀表板前端 UI。
 * `static/app.js` - WebSocket 接收與 Chart.js 動態渲染邏輯。
 * `pdm_project_plan.md` - 開發計畫書。
+
+
